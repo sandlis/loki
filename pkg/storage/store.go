@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 
+	"github.com/grafana/loki/pkg/storage/stores/local"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/common/user"
@@ -14,7 +16,6 @@ import (
 	"github.com/grafana/loki/pkg/chunkenc"
 	"github.com/grafana/loki/pkg/iter"
 	"github.com/grafana/loki/pkg/logql"
-	"github.com/grafana/loki/pkg/logql/stats"
 	"github.com/grafana/loki/pkg/util"
 )
 
@@ -43,7 +44,7 @@ type store struct {
 
 // NewStore creates a new Loki Store using configuration supplied.
 func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) (Store, error) {
-	s, err := storage.NewStore(cfg.Config, storeCfg, schemaCfg, limits)
+	s, err := storage.NewStore(cfg.Config, storeCfg, schemaCfg, limits, registerCustomIndexClients(cfg, storeCfg, schemaCfg, limits))
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +57,6 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 // LazyQuery returns an iterator that will query the store for more chunks while iterating instead of fetching all chunks upfront
 // for that request.
 func (s *store) LazyQuery(ctx context.Context, req logql.SelectParams) (iter.EntryIterator, error) {
-	storeStats := stats.GetStoreData(ctx)
-
 	expr, err := req.LogSelector()
 	if err != nil {
 		return nil, err
@@ -88,7 +87,6 @@ func (s *store) LazyQuery(ctx context.Context, req logql.SelectParams) (iter.Ent
 
 	var totalChunks int
 	for i := range chks {
-		storeStats.TotalChunksRef += int64(len(chks[i]))
 		chks[i] = filterChunksByTime(from, through, chks[i])
 		totalChunks += len(chks[i])
 	}
@@ -112,4 +110,13 @@ func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.
 		filtered = append(filtered, chunk)
 	}
 	return filtered
+}
+
+func registerCustomIndexClients(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) storage.IndexClientOverridesRegistrar {
+	registrar := storage.NewIndexClientOverridesRegistrar()
+	registrar.RegisterIndexClient("boltdb", func() (client chunk.IndexClient, e error) {
+		return local.NewBoltDBIndexClient(cfg.BoltDBConfig)
+	})
+
+	return registrar
 }

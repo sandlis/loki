@@ -73,7 +73,7 @@ func (cfg *Config) Validate() error {
 }
 
 // NewStore makes the storage clients based on the configuration.
-func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits StoreLimits) (chunk.Store, error) {
+func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits StoreLimits, indexClientOverridesRegistrar IndexClientOverridesRegistrar) (chunk.Store, error) {
 	tieredCache, err := cache.New(cfg.IndexQueriesCacheConfig)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConf
 	stores := chunk.NewCompositeStore()
 
 	for _, s := range schemaCfg.Configs {
-		index, err := NewIndexClient(s.IndexType, cfg, schemaCfg)
+		index, err := indexClientOverridesRegistrar.NewIndexClient(s.IndexType, cfg, schemaCfg)
 		if err != nil {
 			return nil, errors.Wrap(err, "error creating index client")
 		}

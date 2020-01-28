@@ -48,6 +48,7 @@ require (
 	github.com/tonistiigi/fifo v0.0.0-20190226154929-a9fb20d87448
 	github.com/ugorji/go v1.1.7 // indirect
 	github.com/weaveworks/common v0.0.0-20191103151037-0e7cefadc44f
+	go.etcd.io/bbolt v1.3.3
 	go.etcd.io/etcd v0.0.0-20190815204525-8f85f0dc2607 // indirect
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343
 	golang.org/x/sys v0.0.0-20191218084908-4a24b4065292 // indirect
@@ -69,3 +70,5 @@ replace golang.org/x/net => golang.org/x/net v0.0.0-20190923162816-aa69164e4478
 replace github.com/Azure/azure-sdk-for-go => github.com/Azure/azure-sdk-for-go v36.2.0+incompatible
 
 replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+incompatible
+
+replace github.com/cortexproject/cortex => github.com/sandeepsukhani/cortex v0.0.0-20200128122607-be48998dc0d0
