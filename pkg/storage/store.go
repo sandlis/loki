@@ -4,6 +4,10 @@ import (
 	"context"
 	"flag"
 
+	"github.com/grafana/loki/pkg/storage/stores"
+
+	"github.com/grafana/loki/pkg/storage/stores/local"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/weaveworks/common/user"
@@ -22,6 +26,7 @@ import (
 type Config struct {
 	storage.Config    `yaml:",inline"`
 	MaxChunkBatchSize int `yaml:"max_chunk_batch_size"`
+	BoltDBArchiverConfig local.ArchiverConfig `yaml:"bolt_db_archiver_config"`
 }
 
 // RegisterFlags adds the flags required to configure this flag set.
@@ -43,6 +48,10 @@ type store struct {
 
 // NewStore creates a new Loki Store using configuration supplied.
 func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) (Store, error) {
+	err := registerCustomIndexClients(cfg, storeCfg, schemaCfg, limits)
+	if err != nil {
+		return nil, err
+	}
 	s, err := storage.NewStore(cfg.Config, storeCfg, schemaCfg, limits)
 	if err != nil {
 		return nil, err
@@ -112,4 +121,25 @@ func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.
 		filtered = append(filtered, chunk)
 	}
 	return filtered
+}
+
+func registerCustomIndexClients(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) error {
+
+	if cfg.BoltDBArchiverConfig.Enable {
+		objectClient, err := stores.NewArchiveStoreClient(cfg.BoltDBArchiverConfig.StoreConfig)
+		if err != nil {
+			return err
+		}
+
+		archiver, err := local.NewArchiver(cfg.BoltDBArchiverConfig, cfg.BoltDBConfig.Directory, objectClient)
+		if err != nil {
+			return err
+		}
+
+		storage.RegisterIndexClient("boltdb", func() (client chunk.IndexClient, e error) {
+			return local.NewBoltDBIndexClient(cfg.BoltDBConfig, archiver)
+		})
+	}
+
+	return nil
 }
