@@ -26,7 +26,7 @@ import (
 type Config struct {
 	storage.Config      `yaml:",inline"`
 	MaxChunkBatchSize   int                 `yaml:"max_chunk_batch_size"`
-	BoltDBShipperConfig local.ShipperConfig `yaml:"boltdb_shipper_config"`
+	BoltDBShipperConfig local.ShipperConfig `yaml:"boltdb_shipper"`
 }
 
 // RegisterFlags adds the flags required to configure this flag set.
@@ -50,7 +50,7 @@ type store struct {
 
 // NewStore creates a new Loki Store using configuration supplied.
 func NewStore(cfg Config, storeCfg chunk.StoreConfig, schemaCfg chunk.SchemaConfig, limits storage.StoreLimits) (Store, error) {
-	registerCustomIndexClients(cfg, schemaCfg)
+	registerCustomIndexClients(cfg)
 
 	s, err := storage.NewStore(cfg.Config, storeCfg, schemaCfg, limits, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -218,35 +218,13 @@ func filterChunksByTime(from, through model.Time, chunks []chunk.Chunk) []chunk.
 	return filtered
 }
 
-func registerCustomIndexClients(cfg Config, schemaCfg chunk.SchemaConfig) {
-	boltdbShipperInstances := 0
+func registerCustomIndexClients(cfg Config) {
 	storage.RegisterIndexStore(local.BoltDBShipperType, func() (chunk.IndexClient, error) {
-		// since we do not know which object client is being used for the period for which we are creating this index client,
-		// we need to iterate through all the periodic configs to find the right one.
-		// We maintain number of instances that we have already created in boltdbShipperInstances and then count the number of
-		// encounters of BoltDBShipperType until we find the right periodic config for getting the ObjectType.
-		// This is done assuming we are creating index client in the order of periodic configs.
-		// Note: We are assuming that user would never store chunks in table based store otherwise NewObjectClient would return an error.
-
-		// ToDo: Try passing on ObjectType from Cortex to the callback for creating custom index client.
-		boltdbShipperEncounter := 0
-		objectStoreType := ""
-		for _, config := range schemaCfg.Configs {
-			if config.IndexType == local.BoltDBShipperType {
-				boltdbShipperEncounter++
-				if boltdbShipperEncounter > boltdbShipperInstances {
-					objectStoreType = config.ObjectType
-					break
-				}
-			}
-		}
-
-		boltdbShipperInstances++
-		objectClient, err := storage.NewObjectClient(objectStoreType, cfg.Config)
+		objectClient, err := storage.NewObjectClient(cfg.BoltDBShipperConfig.SharedStoreType, cfg.Config)
 		if err != nil {
 			return nil, err
 		}
 
-		return local.NewBoltDBIndexClient(cortex_local.BoltDBConfig{Directory: cfg.BoltDBShipperConfig.ActiveIndexDirectory}, objectClient, cfg.BoltDBShipperConfig)
+		return local.NewBoltDBIndexClientWithShipper(cortex_local.BoltDBConfig{Directory: cfg.BoltDBShipperConfig.ActiveIndexDirectory}, objectClient, cfg.BoltDBShipperConfig)
 	}, nil)
 }
