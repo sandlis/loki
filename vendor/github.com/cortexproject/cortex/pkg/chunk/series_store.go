@@ -31,7 +31,7 @@ func (e CardinalityExceededError) Error() string {
 		e.MetricName, e.LabelName, e.Size, e.Limit)
 }
 
-const fiveMin = (5 * time.Minute) / time.Millisecond
+const hour = time.Hour / time.Millisecond
 
 var (
 	indexLookupsPerQuery = promauto.NewHistogram(prometheus.HistogramOpts{
@@ -355,7 +355,7 @@ func (c *seriesStore) lookupChunksBySeries(ctx context.Context, from, through mo
 	log, ctx := spanlogger.New(ctx, "SeriesStore.lookupChunksBySeries")
 	defer log.Span.Finish()
 
-	from = from - model.Time(time.Duration(from)%fiveMin)
+	from = from - model.Time(time.Duration(from)%hour)
 
 	level.Debug(log).Log("seriesIDs", len(seriesIDs))
 
