@@ -13,6 +13,7 @@ import (
 
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/chunk/cache"
+	chunk_util "github.com/cortexproject/cortex/pkg/chunk/util"
 	"github.com/cortexproject/cortex/pkg/tenant"
 	"github.com/cortexproject/cortex/pkg/util/spanlogger"
 )
@@ -68,6 +69,15 @@ func (s *cachingIndexClient) Stop() {
 }
 
 func (s *cachingIndexClient) QueryPages(ctx context.Context, queries []chunk.IndexQuery, callback func(chunk.IndexQuery, chunk.ReadBatch) (shouldContinue bool)) error {
+	if len(queries) == 0 {
+		return nil
+	}
+
+	if isChunksQuery(queries[0]) {
+		// We cache the entire row, so filter client side.
+		callback = chunk_util.QueryFilter(callback)
+	}
+
 	userID, err := tenant.TenantID(ctx)
 	if err != nil {
 		return err
@@ -113,7 +123,14 @@ func (s *cachingIndexClient) QueryPages(ctx context.Context, queries []chunk.Ind
 	for _, key := range misses {
 		// Only need to consider one of the queries as they are the same.
 		queries := queriesByKey[key]
-		cacheableMissed = append(cacheableMissed, queries[0])
+		if isChunksQuery(queries[0]) {
+			cacheableMissed = append(cacheableMissed, chunk.IndexQuery{
+				TableName: queries[0].TableName,
+				HashValue: queries[0].HashValue,
+			})
+		} else {
+			cacheableMissed = append(cacheableMissed, queries[0])
+		}
 
 		rb := ReadBatch{
 			Key:    key,
@@ -209,6 +226,10 @@ func queryKey(q chunk.IndexQuery) string {
 	const sep = "\xff"
 	ret := q.TableName + sep + q.HashValue
 
+	if isChunksQuery(q) {
+		return ret
+	}
+
 	if len(q.RangeValuePrefix) != 0 {
 		ret += sep + yoloString(q.RangeValuePrefix)
 	}
@@ -222,6 +243,14 @@ func queryKey(q chunk.IndexQuery) string {
 	}
 
 	return ret
+}
+
+func isChunksQuery(q chunk.IndexQuery) bool {
+	if len(q.RangeValueStart) != 0 && len(q.ValueEqual) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func (s *cachingIndexClient) cacheStore(ctx context.Context, keys []string, batches []ReadBatch) {
