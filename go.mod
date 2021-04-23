@@ -107,4 +107,4 @@ replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
 
 replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
 
-replace github.com/cortexproject/cortex v1.7.1-0.20210323110114-8a2e2c1eeb65 => github.com/sandeepsukhani/cortex v0.0.0-20210421091252-fbd2572e867f
+replace github.com/cortexproject/cortex v1.7.1-0.20210323110114-8a2e2c1eeb65 => github.com/sandeepsukhani/cortex v0.0.0-20210423065628-2a64de80c04b
